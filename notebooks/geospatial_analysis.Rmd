@@ -1,0 +1,113 @@
+---
+title: "Working with 2023 burglaries data"
+output: html_notebook
+---
+
+```{r}
+library(sf)
+library(tidyverse)
+```
+
+# Analyzing Aggravated Burglaries in Davidson County
+
+### Part 1: Data Preparation
+
+You've been provided three datasets for this project:
+* burglaries_2023.csv: Contains data on the aggravated burglary incidents in Davidson County. This was obtained from https://data.nashville.gov/Police/Metro-Nashville-Police-Department-Incidents/2u6v-ujjs.
+* census.csv: Census tract level data on population and median income. This was obtained from the US Census American Community Survey.
+* DC: A shapefile containing Davidson County census tracts
+
+
+
+```{r}
+burglaries <- read_csv("../data/burglaries_2023.csv")
+census <- read_csv("../data/census.csv")
+```
+
+#Perform a spatial join to determine the census tract in which each burglary occurred. Hint: You may want to make use of the [st_as_sf function](https://r-spatial.github.io/sf/reference/st_as_sf.html) in order to convert the burglaries data into an sf object.
+
+```{r}
+tracts <- st_read("../data/DC/DC.shp")
+tracts
+```
+
+#CRS - Coordinates Reference System 
+It Explains two things
+1. Where is this data located on Earth
+2. What do the coordinates number mean
+Without a CRS, coordinates like (−86.78, 36.16) are just numbers , the CRS tells R how to interpret them
+
+```{r}
+st_crs(tracts) #check the crs for DC
+```
+
+```{r}
+burglaries_geo <- st_as_sf(
+  burglaries |> drop_na(latitude),
+  coords = c('longitude', 'latitude'),
+  crs = st_crs(tracts)  
+)
+
+```
+
+
+```{r}
+burglaries_tract <- st_join(burglaries_geo, tracts, join=st_within) |> 
+  st_drop_geometry()
+
+burglaries_tract |> 
+  filter(!is.na(incident_number))
+```
+
+```{r}
+glimpse(burglaries_tract)
+```
+
+#After performing the spatial join, merge in the census data. **Note:** Make sure that the final dataset contains all census tracts, even those with zero burglaries.
+
+
+```{r}
+# creating GEOID column in census to join the burglaries_tract and census using unique GEOID
+
+#census <- census |> 
+  #mutate(GEOID = paste0(state,
+                       # county,
+                        #tract)
+         #)
+```
+
+
+```{r}
+#census_burglaries <- right_join(census, burglaries_tract, by = "GEOID") 
+
+#census_burglaries |> 
+  #filter(!is.na(incident_number))
+```
+
+### Part 2: Exploratory Analysis
+Perform some exploratory analysis on your prepared dataset.
+
+Aggregate the data by census tract. **Warning:** each incident can appear multiple times if there are multiple victims, so be sure that you aren't double-counting any incidents. 
+
+Which census tract had the highest number of burglaries? Which census tract had the highest number of burglaries per 1000 residents? 
+
+We're interested in the relationship between median income and number of aggravated burglaries, so examine those variables on their own and together to see what you can find. You may want to perform additional calculations, create plots, etc.
+
+```{r}
+burglaries_tracts <- burglaries_tract |> 
+  group_by(TRACTCE) |> 
+  summarize(num_burglaries = n_distinct(incident_number, na.rm = TRUE)) |> 
+  arrange(desc(num_burglaries)) |> 
+  rename(tract = TRACTCE) |> 
+  right_join(census)
+
+burglaries_tracts
+```
+
+
+
+
+
+
+
+
